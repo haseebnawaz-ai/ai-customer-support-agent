@@ -1,0 +1,551 @@
+{
+  "name": "AI Customer Support Agent (Groq)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "customer-support",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "cf16ae58-b469-44ac-8dc6-15750a42234b",
+      "name": "Customer Message Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        96,
+        -128
+      ],
+      "webhookId": "customer-support-webhook"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "message",
+              "type": "string",
+              "value": "={{ $json.body.message }}"
+            },
+            {
+              "id": "a2",
+              "name": "customer_email",
+              "type": "string",
+              "value": "={{ $json.body.email }}"
+            },
+            {
+              "id": "a3",
+              "name": "customer_id",
+              "type": "string",
+              "value": "={{ $json.body.customer_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ff05c540-378d-4f17-8380-37405fdf4c3f",
+      "name": "Normalize Input",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        112,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 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"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: \"llama-3.3-70b-versatile\",\n  messages: [\n    { role: \"system\", content: \"You are an intent classifier for a customer support system. Classify the customer's message into exactly one of: order_status, return_refund, product_recommendation, technical_issue. Also detect the language of the message as an ISO code (e.g. en, ur, hi). Respond ONLY with valid JSON, no extra text, in this exact format: {\\\"intent\\\": \\\"...\\\", \\\"language\\\": \\\"...\\\"}\" },\n    { role: \"user\", content: $json.message }\n  ],\n  response_format: { type: \"json_object\" },\n  temperature: 0.2\n}) }}",
+        "options": {}
+      },
+      "id": "49e1bd8d-9052-4bcb-8ee9-eaa35025273f",
+      "name": "Groq: Classify Intent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        288,
+        -112
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.choices[0].message.content;\nconst parsed = JSON.parse(raw);\nconst prev = $('Normalize Input').first().json;\nreturn [{\n  json: {\n    message: prev.message,\n    customer_email: prev.customer_email,\n    customer_id: prev.customer_id,\n    intent: parsed.intent,\n    language: parsed.language\n  }\n}];"
+      },
+      "id": "f52b1b52-ba65-4104-9156-e58b0100ea4f",
+      "name": "Parse Intent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        304,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "c1",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "order_status",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "c2",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "return_refund",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "c3",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "product_recommendation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "c4",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "technical_issue",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "Product Recommendation"
+        }
+      },
+      "id": "aef87be3-f60c-4c67-b13d-040be6c28856",
+      "name": "Route by Intent",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        512,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT order_id, status, tracking_number, product_name, created_at FROM orders WHERE customer_email = $1 OR customer_id = $2 ORDER BY created_at DESC LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [$json.customer_email, $json.customer_id] }}"
+        }
+      },
+      "id": "a73d5dda-e8c3-4096-a64e-89c812258325",
+      "name": "Get Order Details",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        672,
+        -272
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "NmD5b9k5ooTgdlaJ",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const order = $input.first().json || {};\nconst ctx = $('Parse Intent').first().json;\nreturn [{ json: { ...ctx, order } }];"
+      },
+      "id": "b93b2c2a-4363-49f4-bd9d-a07d68aafe32",
+      "name": "Attach Order Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        864,
+        -272
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "if1",
+              "leftValue": "={{ $json.intent }}",
+              "rightValue": "return_refund",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "291a390e-37f2-4d1c-aec3-da6bcc2203c2",
+      "name": "Is Return Request?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1056,
+        -272
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "nawazmubshar387@gmail.com",
+        "toEmail": "={{ $json.customer_email }}",
+        "subject": "Your Return Request - Instructions Inside",
+        "emailFormat": "text",
+        "text": "=Hi,\n\nWe received your return request for order {{ $json.order.order_id || 'N/A' }} ({{ $json.order.product_name || 'your item' }}).\n\nPlease pack the item securely and use the following reference for your return: RET-{{ $json.order.order_id || 'REQUEST' }}\n\nOur team will email your prepaid return label shortly. If you don't hear back in 24 hours, reply to this email.\n\nThanks,\nSupport Team",
+        "options": {}
+      },
+      "id": "4f8cc173-17e2-4ef9-ab51-16a477e929d3",
+      "name": "Send Return Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        800,
+        208
+      ],
+      "webhookId": "d2f346dd-bebb-49c0-8b71-ddbc9e8c967c",
+      "credentials": {
+        "smtp": {
+          "id": "ibIJUGwWHLFGUPbX",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "name",
+          "value": "support-escalations"
+        },
+        "text": "=🚨 Technical issue escalation\n*From:* {{ $json.customer_email }}\n*Message:* {{ $json.message }}\n*Language:* {{ $json.language }}",
+        "otherOptions": {}
+      },
+      "id": "88ee9650-4902-4bf4-a82d-204e88b7a268",
+      "name": "Escalate to Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        528,
+        144
+      ],
+      "webhookId": "21cbf527-0966-4bc1-b5b9-9ae627aa61d8",
+      "credentials": {
+        "slackApi": {
+          "id": "AytfZNHq04SyoWVk",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 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"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: \"llama-3.3-70b-versatile\",\n  messages: [\n    { role: \"system\", content: \"You are a warm, helpful customer support agent. Reply naturally in the customer's language (code: \" + $json.language + \"). Context - Intent: \" + $json.intent + \". Order data: \" + JSON.stringify($json.order || {}) + \". Keep the reply concise, friendly, and actionable. Do not mention that you are an AI or reference internal system fields directly; speak naturally.\" },\n    { role: \"user\", content: $json.message }\n  ],\n  temperature: 0.5\n}) }}",
+        "options": {}
+      },
+      "id": "733230a5-6a4b-4526-868d-73854d3ab0d0",
+      "name": "Groq: Draft Final Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1264,
+        -272
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const reply = $input.first().json.choices[0].message.content;\nreturn [{ json: { reply } }];"
+      },
+      "id": "25d5a347-0e53-4e5f-941f-d4bac4744297",
+      "name": "Extract Reply Text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { reply: $json.reply } }}",
+        "options": {}
+      },
+      "id": "cf3bfccd-4d36-4cf8-b5d4-54a5e6e05ee4",
+      "name": "Respond to Customer",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [
+        1152,
+        144
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Customer Message Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Input": {
+      "main": [
+        [
+          {
+            "node": "Groq: Classify Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq: Classify Intent": {
+      "main": [
+        [
+          {
+            "node": "Parse Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Intent": {
+      "main": [
+        [
+          {
+            "node": "Route by Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Intent": {
+      "main": [
+        [
+          {
+            "node": "Get Order Details",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Order Details",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Groq: Draft Final Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Escalate to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Order Details": {
+      "main": [
+        [
+          {
+            "node": "Attach Order Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Order Data": {
+      "main": [
+        [
+          {
+            "node": "Is Return Request?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Return Request?": {
+      "main": [
+        [
+          {
+            "node": "Send Return Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Groq: Draft Final Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Return Email": {
+      "main": [
+        [
+          {
+            "node": "Groq: Draft Final Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escalate to Slack": {
+      "main": [
+        [
+          {
+            "node": "Groq: Draft Final Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq: Draft Final Reply": {
+      "main": [
+        [
+          {
+            "node": "Extract Reply Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Reply Text": {
+      "main": [
+        [
+          {
+            "node": "Respond to Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "ac989e2d-b0be-4c27-941a-35a0dc0d4d09",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "17c3d54b46a3702e6112a3cca58396f3167c03ea2410f87f18155a7a53c0026a"
+  },
+  "id": "13JLInSzIjxwv31J",
+  "tags": []
+}
